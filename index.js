@@ -7,18 +7,24 @@ import readline from "readline";
 import sharp from "sharp";
 import { config } from "./config.js";
 
-// ===== readline untuk pairing code =====
+// =========================
+// READLINE (PAIRING CODE)
+// =========================
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
 
 async function startBot() {
-  // ===== AUTH =====
+  // =========================
+  // AUTH
+  // =========================
   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
   const { version } = await fetchLatestBaileysVersion();
 
-  // ===== SOCKET (INI YANG KAMU TANYA) =====
+  // =========================
+  // SOCKET (INI INTINYA)
+  // =========================
   const sock = makeWASocket({
     auth: state,
     version,
@@ -28,21 +34,41 @@ async function startBot() {
   // simpan session
   sock.ev.on("creds.update", saveCreds);
 
-  // ===== LOGIN PERTAMA: PAIRING CODE =====
+  // =========================
+  // CONNECTION HANDLER (FIX 515)
+  // =========================
+  sock.ev.on("connection.update", (update) => {
+    const { connection } = update;
+
+    if (connection === "open") {
+      console.log("✅ Bot connected successfully");
+    }
+
+    if (connection === "close") {
+      console.log("🔁 Connection closed, restarting...");
+      setTimeout(() => startBot(), 3000);
+    }
+  });
+
+  // =========================
+  // PAIRING CODE (LOGIN PERTAMA)
+  // =========================
   if (!state.creds.registered) {
     rl.question("Masukkan nomor WA (contoh 628xxx): ", async (number) => {
-      const code = await sock.requestPairingCode(number);
+      const code = await sock.requestPairingCode(number.trim());
       console.log("PAIRING CODE:", code);
+      rl.close(); // ⬅️ PENTING biar tidak crash
     });
   }
 
-  // ===== MESSAGE HANDLER =====
+  // =========================
+  // MESSAGE HANDLER
+  // =========================
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const msg = messages[0];
     if (!msg.message || msg.key.fromMe) return;
 
     const jid = msg.key.remoteJid;
-
     const text =
       msg.message.conversation ||
       msg.message.extendedTextMessage?.text ||
@@ -83,7 +109,9 @@ async function startBot() {
     }
 
     if (text === "general_info") {
-      await sock.sendMessage(jid, { text: "WhatsApp Bot with Button & Media Feature" });
+      await sock.sendMessage(jid, {
+        text: "WhatsApp Bot with Button & Media Feature"
+      });
       return;
     }
 
@@ -100,9 +128,11 @@ async function startBot() {
       return;
     }
 
-    // foto ke stiker
+    // foto → stiker
     if (text === "media_sticker") {
-      await sock.sendMessage(jid, { text: "Kirim foto dengan caption *stiker*" });
+      await sock.sendMessage(jid, {
+        text: "Kirim foto dengan caption *stiker*"
+      });
       return;
     }
 
@@ -117,9 +147,11 @@ async function startBot() {
       return;
     }
 
-    // stiker ke foto
+    // stiker → foto
     if (text === "media_image") {
-      await sock.sendMessage(jid, { text: "Reply stiker dengan caption *foto*" });
+      await sock.sendMessage(jid, {
+        text: "Reply stiker dengan caption *foto*"
+      });
       return;
     }
 
@@ -155,5 +187,7 @@ async function startBot() {
   });
 }
 
-// ===== JALANKAN =====
+// =========================
+// START BOT
+// =========================
 startBot();
