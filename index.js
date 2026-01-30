@@ -7,102 +7,88 @@ import readline from "readline";
 import sharp from "sharp";
 import { config } from "./config.js";
 
-// =========================
-// READLINE (PAIRING CODE)
-// =========================
+// ===== readline untuk pairing =====
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
 });
 
 async function startBot() {
-  // =========================
-  // AUTH
-  // =========================
+  // ===== AUTH =====
   const { state, saveCreds } = await useMultiFileAuthState("auth_info");
   const { version } = await fetchLatestBaileysVersion();
 
-  // =========================
-  // SOCKET (INI INTINYA)
-  // =========================
+  // ===== SOCKET =====
   const sock = makeWASocket({
     auth: state,
     version,
     printQRInTerminal: false
   });
 
-  // simpan session
   sock.ev.on("creds.update", saveCreds);
 
-  // =========================
-  // CONNECTION HANDLER (FIX 515)
-  // =========================
-  sock.ev.on("connection.update", (update) => {
-    const { connection } = update;
-
-    if (connection === "open") {
-      console.log("✅ Bot connected successfully");
-    }
-
-    if (connection === "close") {
-      console.log("🔁 Connection closed, restarting...");
-      setTimeout(() => startBot(), 3000);
-    }
-  });
-
-  // =========================
-  // PAIRING CODE (LOGIN PERTAMA)
-  // =========================
+  // ===== LOGIN DENGAN PAIRING CODE =====
   if (!state.creds.registered) {
     rl.question("Masukkan nomor WA (contoh 628xxx): ", async (number) => {
-      const code = await sock.requestPairingCode(number.trim());
+      const code = await sock.requestPairingCode(number);
       console.log("PAIRING CODE:", code);
-      rl.close(); // ⬅️ PENTING biar tidak crash
+      rl.close();
     });
   }
 
-  // =========================
-  // MESSAGE HANDLER
-  // =========================
+  // ===== MESSAGE HANDLER =====
   sock.ev.on("messages.upsert", async ({ messages }) => {
     const msg = messages[0];
-    if (!msg.message || msg.key.fromMe) return;
+    if (!msg.message  msg.key.fromMe) return;
 
     const jid = msg.key.remoteJid;
+
     const text =
-      msg.message.conversation ||
+      msg.message.conversation 
+
       msg.message.extendedTextMessage?.text ||
-      msg.message.buttonsResponseMessage?.selectedButtonId;
+      msg.message.listResponseMessage?.singleSelectReply?.selectedRowId;
 
     await sock.readMessages([msg.key]);
 
-    // ===== MENU UTAMA =====
-    if (text === `${config.prefix}menu`) {
+    // =========================
+    // MENU UTAMA (LIST MENU)
+    // =========================
+    if (text === ${config.prefix}menu) {
       await sock.sendMessage(jid, {
-        text: `🤖 *${config.botName}*\nPilih fitur:`,
-        buttons: [
-          { buttonId: "feature_general", buttonText: { displayText: "📚 General" }, type: 1 },
-          { buttonId: "feature_media", buttonText: { displayText: "🖼️ Media" }, type: 1 },
-          { buttonId: "feature_admin", buttonText: { displayText: "⚙️ Admin" }, type: 1 }
-        ],
-        headerType: 1
+        text: 🤖 *${config.botName}*\nPilih fitur di bawah:,
+        footer: "FeatureBot",
+        title: "MAIN MENU",
+        buttonText: "Buka Menu",
+        sections: [
+          {
+            title: "📚 General",
+            rows: [
+              { title: "Ping", rowId: "general_ping" },
+              { title: "Info Bot", rowId: "general_info" }
+            ]
+          },
+          {
+            title: "🖼️ Media",
+            rows: [
+              { title: "Foto → Stiker", rowId: "media_sticker" },
+              { title: "Stiker → Foto", rowId: "media_image" }
+            ]
+          },
+          {
+            title: "⚙️ Admin",
+            rows: [
+              { title: "Owner", rowId: "admin_owner" }
+            ]
+          }
+        ]
       });
       return;
     }
 
-    // ===== GENERAL =====
-    if (text === "feature_general") {
-      await sock.sendMessage(jid, {
-        text: "📚 *General*",
-        buttons: [
-          { buttonId: "general_ping", buttonText: { displayText: "🏓 Ping" }, type: 1 },
-          { buttonId: "general_info", buttonText: { displayText: "ℹ️ Info" }, type: 1 }
-        ],
-        headerType: 1
-      });
-      return;
-    }
-
+    // =========================
+    // GENERAL
+    // =========================
     if (text === "general_ping") {
       await sock.sendMessage(jid, { text: "pong 🏓" });
       return;
@@ -110,28 +96,17 @@ async function startBot() {
 
     if (text === "general_info") {
       await sock.sendMessage(jid, {
-        text: "WhatsApp Bot with Button & Media Feature"
+        text: "WhatsApp Bot dengan List Menu & Media Converter"
       });
       return;
     }
 
-    // ===== MEDIA =====
-    if (text === "feature_media") {
-      await sock.sendMessage(jid, {
-        text: "🖼️ *Media*",
-        buttons: [
-          { buttonId: "media_sticker", buttonText: { displayText: "📸 Foto → Stiker" }, type: 1 },
-          { buttonId: "media_image", buttonText: { displayText: "🧩 Stiker → Foto" }, type: 1 }
-        ],
-        headerType: 1
-      });
-      return;
-    }
-
-    // foto → stiker
+    // =========================
+    // MEDIA
+    // =========================
     if (text === "media_sticker") {
       await sock.sendMessage(jid, {
-        text: "Kirim foto dengan caption *stiker*"
+        text: "Kirim foto dengan caption stiker"
       });
       return;
     }
@@ -147,10 +122,9 @@ async function startBot() {
       return;
     }
 
-    // stiker → foto
     if (text === "media_image") {
       await sock.sendMessage(jid, {
-        text: "Reply stiker dengan caption *foto*"
+        text: "Reply stiker dengan caption foto"
       });
       return;
     }
@@ -166,28 +140,16 @@ async function startBot() {
       return;
     }
 
-    // ===== ADMIN =====
-    if (text === "feature_admin") {
-      await sock.sendMessage(jid, {
-        text: "⚙️ *Admin*",
-        buttons: [
-          { buttonId: "admin_owner", buttonText: { displayText: "👤 Owner" }, type: 1 }
-        ],
-        headerType: 1
-      });
-      return;
-    }
-
+    // =========================
+    // ADMIN
+    // =========================
     if (text === "admin_owner") {
       await sock.sendMessage(jid, {
-        text: `Owner: ${config.owner}`
+        text: Owner: ${config.owner}
       });
       return;
     }
   });
 }
 
-// =========================
-// START BOT
-// =========================
 startBot();
