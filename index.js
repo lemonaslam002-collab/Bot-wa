@@ -38,53 +38,33 @@ async function startBot() {
 
   // ===== MESSAGE HANDLER =====
   sock.ev.on("messages.upsert", async ({ messages }) => {
-    const msg = messages[0];
-    if (!msg.message  msg.key.fromMe) return;
+  const msg = messages[0];
+  if (!msg || !msg.message || msg.key.fromMe) return;
 
-    const jid = msg.key.remoteJid;
+  const jid = msg.key.remoteJid;
 
-    const text =
-      msg.message.conversation 
+  const text =
+    msg.message.conversation ||
+    msg.message.extendedTextMessage?.text ||
+    msg.message.buttonsResponseMessage?.selectedButtonId;
 
-      msg.message.extendedTextMessage?.text ||
-      msg.message.listResponseMessage?.singleSelectReply?.selectedRowId;
+  await sock.readMessages([msg.key]);
 
-    await sock.readMessages([msg.key]);
+  // ===== MENU UTAMA =====
+  if (text === `${config.prefix}menu`) {
+    await sock.sendMessage(jid, {
+      text: `🤖 *${config.botName}*\nPilih fitur:`,
+      buttons: [
+        { buttonId: "feature_general", buttonText: { displayText: "📚 General" }, type: 1 },
+        { buttonId: "feature_media", buttonText: { displayText: "🖼️ Media" }, type: 1 },
+        { buttonId: "feature_admin", buttonText: { displayText: "⚙️ Admin" }, type: 1 }
+      ],
+      headerType: 1
+    });
+    return;
+  }
+});
 
-    // =========================
-    // MENU UTAMA (LIST MENU)
-    // =========================
-    if (text === ${config.prefix}menu) {
-      await sock.sendMessage(jid, {
-        text: 🤖 *${config.botName}*\nPilih fitur di bawah:,
-        footer: "FeatureBot",
-        title: "MAIN MENU",
-        buttonText: "Buka Menu",
-        sections: [
-          {
-            title: "📚 General",
-            rows: [
-              { title: "Ping", rowId: "general_ping" },
-              { title: "Info Bot", rowId: "general_info" }
-            ]
-          },
-          {
-            title: "🖼️ Media",
-            rows: [
-              { title: "Foto → Stiker", rowId: "media_sticker" },
-              { title: "Stiker → Foto", rowId: "media_image" }
-            ]
-          },
-          {
-            title: "⚙️ Admin",
-            rows: [
-              { title: "Owner", rowId: "admin_owner" }
-            ]
-          }
-        ]
-      });
-      return;
-    }
 
     // =========================
     // GENERAL
